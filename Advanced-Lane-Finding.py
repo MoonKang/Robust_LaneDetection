@@ -11,7 +11,7 @@
 # 1. Calibration
 # 2. Undistortion
 # 3. Gradient Threshold
-# 4. Pipeline: Grad/Color Threshold+Filters
+# 4. Pipeline: Grad/Color Threshold
 # 5. Perspective Transformation
 # 6. Lane Detection
 # 7. Image/Video Processing
@@ -29,7 +29,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from scipy.signal import find_peaks_cwt
-#get_ipython().magic(u'matplotlib inline')
+from moviepy.editor import VideoFileClip
+from IPython.display import HTML
+get_ipython().magic(u'matplotlib inline')
 
 
 # In[2]:
@@ -103,7 +105,7 @@ print (mtx)
 # ---
 # ## 2. Undistortion
 
-# In[22]:
+# In[8]:
 
 # For an image, correct distortion based on calibration params
 fname = 'camera_cal/calibration{}.jpg'.format(2)
@@ -120,17 +122,17 @@ plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
 
 # In[9]:
 
-# fname = 'test_images/test{}.jpg'.format(1)
-# img = cv2.imread(fname)
-# corrected_img = cv2.undistort(img, mtx, dist, None, mtx)
-# f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
-# f.tight_layout()
+fname = 'test_images/test{}.jpg'.format(1)
+img = cv2.imread(fname)
+corrected_img = cv2.undistort(img, mtx, dist, None, mtx)
+f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+f.tight_layout()
 
-# ax1.imshow(img)
-# ax1.set_title('Original Image', fontsize=30)
+ax1.imshow(img)
+ax1.set_title('Original Image', fontsize=30)
 
-# ax2.imshow(corrected_img)
-# ax2.set_title('Corrected Result', fontsize=30)
+ax2.imshow(corrected_img)
+ax2.set_title('Corrected Result', fontsize=30)
 
 
 # 
@@ -186,52 +188,9 @@ def dir_threshold(gray, sobel_kernel=3, thresh=(0, np.pi/2)):
     return dir_binary
 
 
-# ## 4. Filter + Pipeline: combine grad, color thresholds and filter
+# ## 4. Pipeline: combine grad and color thresholds 
 
-# In[11]:
-
-def filters(img):
-    left_bottom = (200, img.shape[0])
-    right_bottom = (img.shape[1]-20, img.shape[0])
-    apex1 = (600, 400)
-    apex2 = (680, 400)
-    inner_left_bottom = (320, img.shape[0])
-    inner_right_bottom = (1100, img.shape[0])
-    inner_apex1 = (680,480)
-    inner_apex2 = (620,480)
-    vertices = np.array([[left_bottom, apex1, apex2, right_bottom, inner_right_bottom, inner_apex1, inner_apex2, inner_left_bottom]], dtype=np.int32)
-    
-    region = np.zeros_like(img)   
-    if len(img.shape) > 2:
-        channel_count = img.shape[2]
-        fill_color = (255,) * channel_count
-    else:
-        fill_color = 255
-        
-    cv2.fillPoly(region, vertices, fill_color)
-    if len(img.shape) > 2:
-        filtered = cv2.bitwise_and(img, region)#(7.12023635/5.06977657*pow(10,306))
-    else:
-        filtered = cv2.bitwise_and(img, region)
-#        filtered[filtered>0]=1
-    return filtered
-
-
-# In[12]:
-
-fname = 'test_images/test{}.jpg'.format(1)
-img = cv2.imread(fname)
-f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
-f.tight_layout()
-
-ax1.imshow(img)
-ax1.set_title('Original Image', fontsize=30)
-
-ax2.imshow(filters(img))
-ax2.set_title('Filtered Result', fontsize=30)
-
-
-# In[13]:
+# In[41]:
 
 # Edit this function to create your own pipeline.
 def pipeline(img): 
@@ -264,11 +223,10 @@ def pipeline(img):
     color_binary = np.zeros_like(grad_combined)
     color_binary[(s_binary > 0) | (grad_combined > 0)] = 1
     
-    final = filters(color_binary)
-    return final
+    return color_binary
 
 
-# In[24]:
+# In[42]:
 
 for i in range(1,3):
     fname = 'test_images/test{}.jpg'.format(i)
@@ -307,7 +265,7 @@ for i in range(len(source)):
 # Define a function that takes an image, number of x and y points, 
 # camera matrix and distortion coefficients
 
-def perspectivetransform(img, nx, ny, mtx, dist):
+def perspective_transform(img, nx, ny, mtx, dist):
     # Use the OpenCV undistort() function to remove distortion
     undist = cv2.undistort(img, mtx, dist, None, mtx)
     # Choose an offset from image corners to plot detected corners
@@ -328,10 +286,10 @@ def perspectivetransform(img, nx, ny, mtx, dist):
     # Warp the image using OpenCV warpPerspective()
     warped = cv2.warpPerspective(undist, M, img_size)
     # Return the resulting image and matrix
-    return top_down, perspective_M, perspective_Minv
+    return warped, M, Minv
 
 
-# In[23]:
+# In[17]:
 
 for i in range(1,4):
     fname = 'test_images/test{}.jpg'.format(i)
@@ -394,7 +352,7 @@ def find_curvature(yvals, fitx):
     curverad = ((1 + (2*fit_cr[0]*y_eval + fit_cr[1])**2)**1.5)                                  /np.absolute(2*fit_cr[0])
     return curverad
 
-def sanity_check(lane, curverad, fitx, fit):       
+def curvature_check(lane, curverad, fitx, fit):       
     # Sanity check for the lane
     if lane.detected: # If lane is detected
         # If sanity check passes
@@ -520,6 +478,8 @@ def lane_detect(binary_warped, nwindows = 9):
     left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
     right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
     
+    window_img = np.zeros_like(out_img)
+    
     out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
     out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
     
@@ -527,25 +487,40 @@ def lane_detect(binary_warped, nwindows = 9):
     left_curverad  = find_curvature(ploty, left_fitx)
     right_curverad = find_curvature(ploty, right_fitx)
     
-    # sanity check  
-    left_fitx  = sanity_check(left_lane, left_curverad, left_fitx, left_fit)
-    right_fitx = sanity_check(right_lane, right_curverad, right_fitx, right_fit)
-    return ploty,left_fitx, right_fitx, lefty,leftx,righty,rightx,left_curverad,right_curverad,out_img
+
+    # curvature check  
+    left_fitx  = curvature_check(left_lane, left_curverad, left_fitx, left_fit)
+    right_fitx = curvature_check(right_lane, right_curverad, right_fitx, right_fit)
+    
+    # visualize
+    left_line_window1 = np.array([np.transpose(np.vstack([left_fitx-margin, ploty]))])
+    left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx+margin, ploty])))])
+    left_line_pts = np.hstack((left_line_window1, left_line_window2))
+    right_line_window1 = np.array([np.transpose(np.vstack([right_fitx-margin, ploty]))])
+    right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fitx+margin, ploty])))])
+    right_line_pts = np.hstack((right_line_window1, right_line_window2))
+
+    # Draw the lane onto the warped blank image
+    cv2.fillPoly(window_img, np.int_([left_line_pts]), (0,255, 0))
+    cv2.fillPoly(window_img, np.int_([right_line_pts]), (0,255, 0))
+    result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
+
+    return ploty,left_fitx, right_fitx, lefty,leftx,righty,rightx,left_curverad,right_curverad,result
 
 
-# In[21]:
+# In[39]:
 
 fname = 'test_images/test{}.jpg'.format(1)
 img = cv2.imread(fname)
 image = pipeline(img)
 # Warp the image to make lanes parallel to each other
-top_down, perspective_M, perspective_Minv = corners_unwarp(image, nx, ny, mtx, dist)
+top_down, perspective_M, perspective_Minv = perspective_transform(image, nx, ny, mtx, dist)
 left_lane=Line()
 right_lane=Line()
 ploty,left_fitx, right_fitx, lefty,leftx,righty,rightx,left_curverad,right_curverad,out_img = lane_detect(top_down)
 
 
-# In[ ]:
+# In[43]:
 
 f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
 f.tight_layout()
@@ -562,9 +537,9 @@ plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
 
 # ## Image and Video Processing
 
-# In[ ]:
+# In[44]:
 
-def draw_poly(image, warped, ploty, left_fitx, right_fitx, Minv):
+def draw_poly(image, warped, ploty, left_fitx, right_fitx, Minv,curverad):
     # Create an image to draw the lines on
     warp_zero = np.zeros_like(warped).astype(np.uint8)
     color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
@@ -580,24 +555,22 @@ def draw_poly(image, warped, ploty, left_fitx, right_fitx, Minv):
     result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
     # Put text on an image
     font = cv2.FONT_HERSHEY_SIMPLEX
-    text = "Radius of Curvature: {} m".format(int(left_curverad))
+    text = "Radius of Curvature: {} m".format(int(curverad))
     cv2.putText(result,text,(100,100), font, 1,(255,255,255),2)
     # Find the position of the car
     pts = np.argwhere(newwarp[:,:,1])
     position = find_position(pts)
     if position < 0:
-        text = "Vehicle is {:.2f} m left of center".format(-position)
+        text = "Vehicle: {:.2f} m left of center".format(-position)
     else:
-        text = "Vehicle is {:.2f} m right of center".format(position)
+        text = "Vehicle: {:.2f} m right of center".format(position)
     cv2.putText(result,text,(100,150), font, 1,(255,255,255),2)
     return result
 
 
-# In[ ]:
+# In[45]:
 
 def find_position(pts):
-    # Find the position of the car from the center
-    # It will show if the car is 'x' meters from the left or right
     position = image.shape[1]/2
     left  = np.min(pts[(pts[:,1] < position) & (pts[:,0] > 700)][:,1])
     right = np.max(pts[(pts[:,1] > position) & (pts[:,0] > 700)][:,1])
@@ -607,7 +580,7 @@ def find_position(pts):
     return (position - center)*xm_per_pix
 
 
-# In[ ]:
+# In[46]:
 
 # This function will color the image
 # Input: Original image
@@ -617,15 +590,15 @@ def process_image(image):
     # Apply pipeline to the image to create black and white image
     img = pipeline(image)
     # Warp the image to make lanes parallel to each other
-    top_down, perspective_M, perspective_Minv = corners_unwarp(img, nx, ny, mtx, dist)
+    top_down, perspective_M, perspective_Minv = perspective_transform(img, nx, ny, mtx, dist)
     # Find the lines fitting to left and right lanes
     ploty,left_fitx, right_fitx, lefty,leftx,righty,rightx,left_curverad,right_curverad,out_img = lane_detect(top_down)
     # Return the original image with colored region
-    image_drawn= draw_poly(image, top_down, ploty,left_fitx, right_fitx,perspective_Minv)
+    image_drawn= draw_poly(image, top_down, ploty,left_fitx, right_fitx,perspective_Minv,left_curverad)
     return image_drawn
 
 
-# In[ ]:
+# In[47]:
 
 left_lane = Line()
 right_lane = Line()
@@ -652,16 +625,14 @@ plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
 
 # In[ ]:
 
-### Import everything needed to edit/save/watch video clips
-from moviepy.editor import VideoFileClip
-from IPython.display import HTML
-# Set up lines for left and right
 left_lane = Line()
 right_lane = Line()
 clip1 = VideoFileClip("project_video.mp4")
 processed_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
-processed_clip.write_videofile('project_video_laned.mp4', audio=False)
+processed_clip.write_videofile('white.mp4', audio=False)
 
+
+# In[ ]:
 
 
 
