@@ -23,10 +23,13 @@ Process:
 
 [image]: ./output_images/calibration.png
 [image1]: ./output_images/threshold_image.png
-
 [image2]: ./output_images/transformed.png
 [image3]: ./output_images/lane_detection.png
-[image4]: ./output_images/final.png
+[image4]: ./output_images/colorspace_feature.png
+[image5]: ./output_images/HOG_feature.png
+[image6]: ./output_images/normalized_features.png
+[image7]: ./output_images/windowsearch.png
+[image8]: ./output_images/final.png
 
 
 ### 1. Calibration / Undistortion
@@ -61,4 +64,4 @@ In order to identify position of vehicle, I have used min and max of x-pixel fro
 
 ### Output
 
-![alt text][image4]
+![alt text][image8]
