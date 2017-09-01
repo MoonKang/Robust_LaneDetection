@@ -29,7 +29,6 @@ Process:
 [image4]: ./output_images/final.png
 
 
-
 ### 1. Calibration / Undistortion
 
 I have used calibration images of chessboards in order to identify its corners and compared with their objective points to calculate calibration. I used cv2 calibratecamera function to derive mitx and dist from the img and corner points. Then based on mitx and dist from calibration, I can undistort images.
