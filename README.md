@@ -11,6 +11,8 @@ Process:
 5. Radius of Curvature and position of vehicle
 
 
+### Output
+![alt text][image8]
 
 [image]: ./output_images/calibration.png
 [image1]: ./output_images/threshold_image.png
@@ -61,6 +63,3 @@ Based on inverse of polynomial functions I derived, I can get x values for range
 
 In order to identify position of vehicle, I have used min and max of x-pixel from unwarped image and took average of it and compared with the center of image. After taking the difference, I have multiplied with meter per x-pixel to derive its position. (line 598).
 
-### Output
-* Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
-![alt text][image8]
